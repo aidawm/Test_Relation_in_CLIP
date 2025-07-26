@@ -44,6 +44,8 @@ class Relation_Calculator:
             return attention_values.mean(dim=(1,2)).max().item()
         elif self.config.which_function == 3:
             return attention_values.max(dim=1).values.mean(dim=1).max().item()
+        elif self.config.which_function == 4:
+            return attention_values.mean(dim=1).mean(dim=1).prod(dim=0) 
 
     def get_attention_between_objects(self, attention, object1_patch_list, object2_patch_list, has_cls_token=True):
         """

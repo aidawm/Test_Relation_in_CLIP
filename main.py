@@ -96,10 +96,11 @@ if __name__ == '__main__':
     CLIPConfig(model_link="openai/clip-vit-base-patch16", which_function=0, image_size=224, patch_size=16, num_layers=12),
     CLIPConfig(model_link="openai/clip-vit-base-patch16", which_function=1, image_size=224, patch_size=16, num_layers=12),
     CLIPConfig(model_link="openai/clip-vit-base-patch16", which_function=2, image_size=224, patch_size=16, num_layers=12),
+    CLIPConfig(model_link="openai/clip-vit-base-patch16", which_function=4, image_size=224, patch_size=16, num_layers=12),
     # CLIPConfig(model_link="openai/clip-vit-base-patch16", which_function=3, image_size=224, patch_size=16, num_layers=12)
     ]
 
-    process_each_config(configs[4])  # Run the first config to ensure the model is loaded
+    process_each_config(configs[6])  # Run the first config to ensure the model is loaded
 
 
     # with ThreadPoolExecutor(max_workers=6) as executor:
