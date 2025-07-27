@@ -26,11 +26,11 @@ def get_relation_edges_for_objects(edges, object_names):
         first_object = edges[(edges[:, 0] == i)]
         second_object = edges[(edges[:, 1] == i)]
         for j in first_object:
-            if j[1] in background_objects:
+            if object_names[j[1]] in background_objects:
                 continue
             relation_edges[i].add(int(j[1]))
         for j in second_object:
-            if j[0] in background_objects:
+            if object_names[j[0]] in background_objects:
                 continue
             relation_edges[i].add(int(j[0]))
         if len(relation_edges[i]) == 0:
