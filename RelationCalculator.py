@@ -12,12 +12,11 @@ from Configs import CLIPConfig
 
 
 class Relation_Calculator: 
-    def __init__ (self, image, layer: int, config:CLIPConfig):
+    def __init__ (self, image, config:CLIPConfig):
         self.config = config
         self.model = self.config.model
         self.processor = self.config.processor
         self.image = image
-        self.layer = layer
         self.__get_last_layer_attention()
         
 
@@ -33,7 +32,9 @@ class Relation_Calculator:
 
         # Get attention from the last layer of the vision transformer
         self.vision_attentions = outputs.vision_model_output.attentions  # list of layers
-        self.last_layer_attention = self.vision_attentions[self.layer][0]  # shape: (1, num_heads, seq_len, seq_len)
+        selected_layer_index = [1,2,3,4,5,6]  # Example: last 6 layers
+        self.last_layer_attention = selected_layers = torch.stack([self.vision_attentions[i][0] for i in selected_layer_index]) # shape: (1, num_head, seq_len, seq_len)
+        # print(f"Attention shape: {self.last_layer_attention.shape}")
     
     def process_attention(self, attention_values):
         if self.config.which_function == 0:
@@ -60,10 +61,10 @@ class Relation_Calculator:
         object2_indices = [j + offset for j in object2_patch_list]
 
         # Extract attention values from object1 patches to object2 patches
-        att_values = attention[:, object1_indices, :][:, :, object2_indices]  # [heads, len(obj1), len(obj2)]
+        att_values = attention[:,:, object1_indices, :][:, :, :, object2_indices]  # [heads, len(obj1), len(obj2)]
       
 
-        return self.process_attention(att_values)
+        return att_values.mean(dim=2).max(dim=2).values.max(dim=1).values.mean().item()
       
     def get_relation(self, bbox1,bbox2):
         patches1 = self.get_patch_indices_in_bbox(bbox1)
