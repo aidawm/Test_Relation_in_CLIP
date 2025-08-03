@@ -12,15 +12,14 @@ from Configs import CLIPConfig
 
 
 class Relation_Calculator: 
-    def __init__ (self, image, layer: int, config:CLIPConfig):
+    def __init__ (self, image: int, config:CLIPConfig, layer_list: list):
         self.config = config
         self.model = self.config.model
         self.processor = self.config.processor
         self.image = image
-        self.layer = layer
+        self.layer_list = layer_list
         self.__get_last_layer_attention()
         
-
 
     def __get_last_layer_attention (self):
         inputs = self.processor(
@@ -33,7 +32,9 @@ class Relation_Calculator:
 
         # Get attention from the last layer of the vision transformer
         self.vision_attentions = outputs.vision_model_output.attentions  # list of layers
-        self.last_layer_attention = self.vision_attentions[self.layer][0]  # shape: (1, num_heads, seq_len, seq_len)
+        selected_layer_index = self.layer_list
+        self.last_layer_attention = selected_layers = torch.stack([self.vision_attentions[i][0] for i in selected_layer_index]) # shape: (1, num_head, seq_len, seq_len)
+
     
     def process_attention(self, attention_values):
         if self.config.which_function == 0:
@@ -46,6 +47,20 @@ class Relation_Calculator:
             return attention_values.max(dim=1).values.mean(dim=1).max().item()
         elif self.config.which_function == 4:
             return attention_values.mean(dim=1).mean(dim=1).prod(dim=0) 
+        
+    def process_attention_multi_layer (self, attention_values):
+        if self.config.which_function == 0:
+            return attention_values.mean(dim=2).max(dim=2).values.max(dim=1).values.mean().item()
+        elif self.config.which_function == 1:
+            return attention_values.max(dim=2).values.mean(dim=2).max(dim=1).values.mean().item()
+        elif self.config.which_function == 2:
+            return attention_values.mean(dim=2).max(dim=2).values.mean(dim=1).max().item()
+        elif self.config.which_function == 3:
+            return attention_values.mean(dim=2).max(dim=2).values.prod(dim=1).prod().item()
+        elif self.config.which_function == 4:
+            return attention_values.mean(dim=2).max(dim=2).values.max(dim=1).values.prod().item()
+        elif self.config.which_function == 5:
+            return attention_values.mean(dim=2).max(dim=2).values.mean(dim=1).prod().item()
 
     def get_attention_between_objects(self, attention, object1_patch_list, object2_patch_list, has_cls_token=True):
         """
@@ -60,10 +75,10 @@ class Relation_Calculator:
         object2_indices = [j + offset for j in object2_patch_list]
 
         # Extract attention values from object1 patches to object2 patches
-        att_values = attention[:, object1_indices, :][:, :, object2_indices]  # [heads, len(obj1), len(obj2)]
+        att_values = attention[:,:, object1_indices, :][:,:, :, object2_indices]  # [heads, len(obj1), len(obj2)]
       
 
-        return self.process_attention(att_values)
+        return self.process_attention_multi_layer(att_values)
       
     def get_relation(self, bbox1,bbox2):
         patches1 = self.get_patch_indices_in_bbox(bbox1)

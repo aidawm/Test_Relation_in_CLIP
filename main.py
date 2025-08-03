@@ -108,8 +108,8 @@ def process_each_config(config: CLIPConfig, data):
 
     layer_results= dict(sorted(layer_results.items(), key=lambda x: x[0],reverse=True))
     
-def process_single_layer (layer, config: CLIPConfig, data):
-    print(f"Processing layer {layer} for model {config.model_link} with function {config.which_function}")
+def process_single_layer (layer_list, config: CLIPConfig, data):
+    print(f"Processing layer {layer_list} for model {config.model_link} with function {config.which_function}")
     CLIP_performance_recall = []
     for idx, d in enumerate(data):
             image, target = d
@@ -118,7 +118,7 @@ def process_single_layer (layer, config: CLIPConfig, data):
             relation_edges = get_relation_edges_for_objects(edges)
             image_copy = image.copy()
             image_copy = image_copy.resize((config.image_size, config.image_size))
-            image_relation_calculator = Relation_Calculator(image_copy, layer, config)
+            image_relation_calculator = Relation_Calculator(image_copy, config, layer_list)
 
             # Normalize bounding boxes to the image size
             bboxes = target['boxes'].to(config.device)
@@ -143,12 +143,12 @@ def process_single_layer (layer, config: CLIPConfig, data):
             if recall != -1:
                 CLIP_performance_recall.append(recall)
             
-            with open(f'result/layer{layer}.txt', 'a') as file:
+            with open(f'result/layer{layer_list}_func{config.which_function}.txt', 'a') as file:
                 file.write(f'{recall}\n')
                 
             if idx % 200 == 0:
-                print(f"result config: model={config.model_link}, which_function={config.which_function}, layer: {layer} for until image {idx} is {sum(CLIP_performance_recall) / len(CLIP_performance_recall)}")
-    print(f"CLIP performance recall for model={config.model_link}, which_function={config.which_function}, layer={layer}: {sum(CLIP_performance_recall) / len(CLIP_performance_recall)}")
+                print(f"result config: model={config.model_link}, which_function={config.which_function}, layer: {layer_list} for until image {idx} is {sum(CLIP_performance_recall) / len(CLIP_performance_recall)}")
+    print(f"CLIP performance recall for model={config.model_link}, which_function={config.which_function}, layer={layer_list}: {sum(CLIP_performance_recall) / len(CLIP_performance_recall)}")
     
     
     
@@ -167,20 +167,25 @@ if __name__ == '__main__':
     print (f"Dataset loaded with {len(data)} images.")
     
     configs = [
-    CLIPConfig(model_link="openai/clip-vit-large-patch14-336", which_function=0, image_size=336, patch_size=14, num_layers=24),
-    CLIPConfig(model_link="openai/clip-vit-large-patch14-336", which_function=1, image_size=336, patch_size=14, num_layers=24),
-    CLIPConfig(model_link="openai/clip-vit-large-patch14-336", which_function=2, image_size=336, patch_size=14, num_layers=24),
+    # CLIPConfig(model_link="openai/clip-vit-large-patch14-336", which_function=0, image_size=336, patch_size=14, num_layers=24),
+    # CLIPConfig(model_link="openai/clip-vit-large-patch14-336", which_function=1, image_size=336, patch_size=14, num_layers=24),
+    # CLIPConfig(model_link="openai/clip-vit-large-patch14-336", which_function=2, image_size=336, patch_size=14, num_layers=24),
     CLIPConfig(model_link="openai/clip-vit-base-patch16", which_function=0, image_size=224, patch_size=16, num_layers=12),
     CLIPConfig(model_link="openai/clip-vit-base-patch16", which_function=1, image_size=224, patch_size=16, num_layers=12),
     CLIPConfig(model_link="openai/clip-vit-base-patch16", which_function=2, image_size=224, patch_size=16, num_layers=12),
+    CLIPConfig(model_link="openai/clip-vit-base-patch16", which_function=3, image_size=224, patch_size=16, num_layers=12),
+    CLIPConfig(model_link="openai/clip-vit-base-patch16", which_function=4, image_size=224, patch_size=16, num_layers=12),
+    CLIPConfig(model_link="openai/clip-vit-base-patch16", which_function=5, image_size=224, patch_size=16, num_layers=12),
     # CLIPConfig(model_link="openai/clip-vit-base-patch16", which_function=4, image_size=224, patch_size=16, num_layers=12),
     # CLIPConfig(model_link="openai/clip-vit-base-patch16", which_function=3, image_size=224, patch_size=16, num_layers=12)
     ]
-
+    # process_single_layer(0, configs[4], data)
     # process_each_config(configs[4], data)
-    print (f"Starting processing for {len(configs)} configurations...")
-    with ThreadPoolExecutor(max_workers=12) as executor:
-        futures = [executor.submit(process_single_layer, l, configs[4],data) for l in range(12)]
+    # print (f"Starting processing for {len(configs)} configurations...")
+    layer_lists = [list(range(12)), [3, 4, 5, 6], [3, 4, 5], list(range(1, 6))]
+    
+    with ThreadPoolExecutor(max_workers=24) as executor:
+        futures = [executor.submit(process_single_layer, l, configs[i],data) for l in layer_lists for i in range(len(configs))]
         
         for future in as_completed(futures):
             try:
