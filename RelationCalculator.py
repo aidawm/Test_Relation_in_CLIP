@@ -12,17 +12,18 @@ from Configs import CLIPConfig
 
 
 class Relation_Calculator: 
-    def __init__ (self, image, layer: int, head: int,  config:CLIPConfig):
+    def __init__ (self, image, h_l_pair ,  config:CLIPConfig):
         self.config = config
         self.model = self.config.model
         self.processor = self.config.processor
         self.image = image
-        self.layer = layer
-        self.head = head
+        # self.layer = layer
+        # self.head = head
+        self.layer_head_pair_list = h_l_pair
         self.__get_last_layer_attention()
         
-
-
+        
+            
     def __get_last_layer_attention (self):
         inputs = self.processor(
             text=["a photo"], images=self.image, return_tensors="pt", padding=True
@@ -31,10 +32,11 @@ class Relation_Calculator:
         # Forward pass
         with torch.no_grad():
             outputs = self.model(**inputs, output_attentions=True)
-
+        
         # Get attention from the last layer of the vision transformer
         self.vision_attentions = outputs.vision_model_output.attentions  # list of layers
-        self.last_layer_attention = self.vision_attentions[self.layer][0][self.head]  # shape: (1, num_heads, seq_len, seq_len)
+        self.last_layer_attention = torch.stack([self.vision_attentions[l][0][h] for l,h in self.layer_head_pair_list])
+        # self.last_layer_attention = self.vision_attentions[self.layer][0][self.head]  # shape: (1, num_heads, seq_len, seq_len)
     
     def process_attention(self, attention_values):
         if self.config.which_function == 0:
@@ -61,10 +63,10 @@ class Relation_Calculator:
         object2_indices = [j + offset for j in object2_patch_list]
 
         # Extract attention values from object1 patches to object2 patches
-        att_values = attention[object1_indices, :][:, object2_indices]  # [heads, len(obj1), len(obj2)]
+        att_values = attention[:,object1_indices, :][:,:, object2_indices]  # [heads, len(obj1), len(obj2)]
       
 
-        return att_values.mean(dim=0).max(dim=0)
+        return att_values.mean(dim=1).max(dim=1).values.max().item()
       
     def get_relation(self, bbox1,bbox2):
         patches1 = self.get_patch_indices_in_bbox(bbox1)

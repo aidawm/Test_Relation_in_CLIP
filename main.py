@@ -8,7 +8,21 @@ import sys
 import os
 import re
 
+def get_selected_pairs(): 
+    config_files = [f for f in os.listdir("result/") if f.endswith('.txt')]
+    print(config_files)
+    selected_files = [4,7,12,20]        
+    selected_layer_head_pairs = []
+    for s in selected_files:
+        text=config_files[s]
+        match = re.match(r'layer(\d+)_head(\d+)', text)
+        if match:
+            layer = int(match.group(1))
+            head = int(match.group(2))
+            selected_layer_head_pairs.append((layer, head))
+    return selected_layer_head_pairs
 
+                
 def get_list_of_objects_from_edges(edges):
     # Extract unique objects from edges
     objects = set()
@@ -193,6 +207,48 @@ def process_single_layer_single_head (layer, head, config: CLIPConfig, data):
                 print(f"result config: model={config.model_link}, which_function={config.which_function}, layer: {layer} head {head} for until image {idx} is {sum(CLIP_performance_recall) / len(CLIP_performance_recall)}")
     print(f"CLIP performance recall for model={config.model_link}, which_function={config.which_function}, layer={layer} head{head}: {sum(CLIP_performance_recall) / len(CLIP_performance_recall)}")
     
+def multi_head_layer(l_h_pair, config: CLIPConfig, data):
+    print(f"Processing layer-head par {l_h_pair}for model {config.model_link} with function {config.which_function}")
+    CLIP_performance_recall = []
+    for idx, d in enumerate(data):
+            image, target = d
+            edges = target['edges'].to(config.device)
+            # object_names = target['object_names']
+            relation_edges = get_relation_edges_for_objects(edges)
+            image_copy = image.copy()
+            image_copy = image_copy.resize((config.image_size, config.image_size))
+            image_relation_calculator = Relation_Calculator(image_copy, l_h_pair, config)
+
+            # Normalize bounding boxes to the image size
+            bboxes = target['boxes'].to(config.device)
+            bboxes = transform_boxes(bboxes, [image.size[1],image.size[0]], (config.image_size,config.image_size))
+            
+            count_image_recall_objects = 0 
+            count_total_relations = 0 
+            # image_recall_list = []
+            for j in relation_edges.keys():
+                attentions_j = dict()
+                for k in relation_edges.keys():
+                    if j == k:
+                        continue
+                    attentions_j[k] = image_relation_calculator.get_relation(bboxes[j], bboxes[k])
+                n = len(relation_edges[j])
+                attentions_j = dict(sorted(attentions_j.items(), key=lambda x: x[1], reverse=True)[:n])
+                common_count = len(set(attentions_j.keys()) & relation_edges[j])
+                count_image_recall_objects+= common_count
+                count_total_relations += n
+                
+            recall = count_image_recall_objects / count_total_relations if count_total_relations > 0 else -1
+            if recall != -1:
+                CLIP_performance_recall.append(recall)
+            
+            with open(f'result/multi3.txt', 'a') as file:
+                file.write(f'{recall}\n')
+                
+            if idx % 200 == 0:
+                print(f"result config: model={config.model_link}, which_function={config.which_function} for until image {idx} is {sum(CLIP_performance_recall) / len(CLIP_performance_recall)}")
+    print(f"CLIP performance recall for model={config.model_link}, which_function={config.which_function}: {sum(CLIP_performance_recall) / len(CLIP_performance_recall)}")
+    
     
 if __name__ == '__main__':
     image_path = "/data/VG_100K"
@@ -219,28 +275,31 @@ if __name__ == '__main__':
     # CLIPConfig(model_link="openai/clip-vit-base-patch16", which_function=3, image_size=224, patch_size=16, num_layers=12)
     ]
     
-    with open("list_of_selected_heads", 'r') as file:
-        list_of_selected_heads = [] 
-        for line in file:
-            list_of_selected_heads.append(line.strip())
+    # with open("list_of_selected_heads", 'r') as file:
+    #     list_of_selected_heads = [] 
+    #     for line in file:
+    #         list_of_selected_heads.append(line.strip())
         
-    selected_layer_head_pairs = []
-    for text in list_of_selected_heads:
-        match = re.match(r'layer(\d+)_head(\d+)', text)
-        if match:
-            layer = int(match.group(1))
-            head = int(match.group(2))
-            selected_layer_head_pairs.append((layer, head))
+    # selected_layer_head_pairs = []
+    # for text in list_of_selected_heads:
+    #     match = re.match(r'layer(\d+)_head(\d+)', text)
+    #     if match:
+    #         layer = int(match.group(1))
+    #         head = int(match.group(2))
+    #         selected_layer_head_pairs.append((layer, head))
         
-    print (f"Starting processing for {len(configs)} configurations...")
-    with ThreadPoolExecutor(max_workers=len(selected_layer_head_pairs)) as executor:
-        futures = [executor.submit(process_single_layer_single_head, selected_layer_head_pairs[s][0],selected_layer_head_pairs[s][1], configs[4],data) for s in range(len(selected_layer_head_pairs))]
+    # print (f"Starting processing for {len(configs)} configurations...")
+    # with ThreadPoolExecutor(max_workers=len(selected_layer_head_pairs)) as executor:
+    #     futures = [executor.submit(process_single_layer_single_head, selected_layer_head_pairs[s][0],selected_layer_head_pairs[s][1], configs[4],data) for s in range(len(selected_layer_head_pairs))]
         
-        for future in as_completed(futures):
-            try:
-                future.result()  # This will raise any exceptions from the thread
-            except Exception as e:
-                print(f"Thread raised an exception: {e}")
+    #     for future in as_completed(futures):
+    #         try:
+    #             future.result()  # This will raise any exceptions from the thread
+    #         except Exception as e:
+    #             print(f"Thread raised an exception: {e}")
+    
+    selected_layer_head_pairs = get_selected_pairs()
+    multi_head_layer(selected_layer_head_pairs,configs[4],data)
         
 
 
