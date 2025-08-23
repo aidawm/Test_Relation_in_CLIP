@@ -49,6 +49,21 @@ class Relation_Calculator:
             return attention_values.max(dim=1).values.mean(dim=1).max().item()
         elif self.config.which_function == 4:
             return attention_values.mean(dim=1).mean(dim=1).prod(dim=0) 
+        
+
+    def get_attention_entropy_weight(self,attention_weight):
+        attn_weight = attention_weight.clone()
+        # normalize attn_weight over rows
+        row_sums = attn_weight.sum(axis=1, keepdims=True)  # Sum each row
+        norm_attn_weight = attn_weight / row_sums  # Divide each element by the row sum
+        # Avoid log(0) by clipping the values
+        norm_attn_weight = norm_attn_weight.detach().numpy()
+        norm_attn_weight = np.clip(norm_attn_weight, 1e-10, 1)
+   
+        entropies = -np.sum(norm_attn_weight * np.log2(norm_attn_weight), axis=1)
+        enropies_inverse = 1/entropies
+    
+        return enropies_inverse.mean()  
 
     def get_attention_between_objects(self, attention, object1_patch_list, object2_patch_list, has_cls_token=True):
         """
@@ -61,12 +76,19 @@ class Relation_Calculator:
         # Shift patch indices if CLS token is present
         object1_indices = [i + offset for i in object1_patch_list]
         object2_indices = [j + offset for j in object2_patch_list]
-
+        
+        # weights = [self.get_attention_entropy_weight(a) for a in attention]
+        # norm_weights = weights/sum(weights)
+        
         # Extract attention values from object1 patches to object2 patches
         att_values = attention[:,object1_indices, :][:,:, object2_indices]  # [heads, len(obj1), len(obj2)]
-      
-
-        return att_values.mean(dim=1).max(dim=1).values.max().item()
+    
+        weights = [self.get_attention_entropy_weight(a) for a in attention]
+        norm_weights = weights/sum(weights)
+        norm_weights = torch.tensor(norm_weights)
+        att_values_over_patches = att_values.mean(dim=1).max(dim=1).values
+        
+        return (norm_weights*att_values_over_patches).sum()
       
     def get_relation(self, bbox1,bbox2):
         patches1 = self.get_patch_indices_in_bbox(bbox1)

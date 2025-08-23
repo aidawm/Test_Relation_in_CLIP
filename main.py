@@ -9,18 +9,20 @@ import os
 import re
 
 def get_selected_pairs(): 
-    config_files = [f for f in os.listdir("result/") if f.endswith('.txt')]
-    print(config_files)
-    selected_files = [4,7,12,20]        
-    selected_layer_head_pairs = []
-    for s in selected_files:
-        text=config_files[s]
-        match = re.match(r'layer(\d+)_head(\d+)', text)
-        if match:
-            layer = int(match.group(1))
-            head = int(match.group(2))
-            selected_layer_head_pairs.append((layer, head))
-    return selected_layer_head_pairs
+    # config_files = [f for f in os.listdir("result/") if f.endswith('.txt')]
+    # print(config_files)
+    # selected_files = [0,2,4,6,7,11]    
+    # selected_layer_head_pairs = []
+    # for s in selected_files:
+    #     text=config_files[s]
+    #     match = re.match(r'layer(\d+)_head(\d+)', text)
+    #     if match:
+    #         layer = int(match.group(1))
+    #         head = int(match.group(2))
+    #         selected_layer_head_pairs.append((layer, head))
+
+    
+    return [(5,j) for j in range(12)]
 
                 
 def get_list_of_objects_from_edges(edges):
@@ -66,7 +68,7 @@ def get_relation_edges_for_objects(edges):
 def transform_boxes(bboxes, init_image_size ,dest_image_size):
     # Normalize bounding boxes to the image size
     
-    bboxes = bboxes.to("cuda")
+    bboxes = bboxes
     bboxes[:, 0] = bboxes[:, 0] * dest_image_size[1] / init_image_size[1]
     bboxes[:, 1] = bboxes[:, 1] * dest_image_size[0] / init_image_size[0]
     bboxes[:, 2] = bboxes[:, 2] * dest_image_size[1] / init_image_size[1]
@@ -169,6 +171,8 @@ def process_single_layer_single_head (layer, head, config: CLIPConfig, data):
     print(f"Processing layer {layer}, head {head} for model {config.model_link} with function {config.which_function}")
     CLIP_performance_recall = []
     for idx, d in enumerate(data):
+            if idx < 6000: 
+                continue
             image, target = d
             edges = target['edges'].to(config.device)
             # object_names = target['object_names']
@@ -242,7 +246,7 @@ def multi_head_layer(l_h_pair, config: CLIPConfig, data):
             if recall != -1:
                 CLIP_performance_recall.append(recall)
             
-            with open(f'result/multi3.txt', 'a') as file:
+            with open(f'result/multi_heads_for_layer5_2.txt', 'a') as file:
                 file.write(f'{recall}\n')
                 
             if idx % 200 == 0:
@@ -251,10 +255,10 @@ def multi_head_layer(l_h_pair, config: CLIPConfig, data):
     
     
 if __name__ == '__main__':
-    image_path = "/data/VG_100K"
-    data_path = "/root/aida/vg_data"
+    image_path = "/Users/aida/Downloads"
+    data_path = "/Users/aida/playground/research/vg_data"
     print("Loading dataset...")
-    sys.path.append('/root/aida/Test_Relation_in_CLIP')
+    sys.path.append('/Users/aida/playground/research/relation_finder')
     image_set = "test"
     data = VGDataset(split=image_set,
                      img_dir=os.path.join(image_path, "VG_100K"), 
@@ -263,6 +267,7 @@ if __name__ == '__main__':
                      image_file=os.path.join(data_path, "stanford_filtered/image_data.json"))
     
     print (f"Dataset loaded with {len(data)} images.")
+
     
     configs = [
     CLIPConfig(model_link="openai/clip-vit-large-patch14-336", which_function=0, image_size=336, patch_size=14, num_layers=24),
@@ -289,8 +294,8 @@ if __name__ == '__main__':
     #         selected_layer_head_pairs.append((layer, head))
         
     # print (f"Starting processing for {len(configs)} configurations...")
-    # with ThreadPoolExecutor(max_workers=len(selected_layer_head_pairs)) as executor:
-    #     futures = [executor.submit(process_single_layer_single_head, selected_layer_head_pairs[s][0],selected_layer_head_pairs[s][1], configs[4],data) for s in range(len(selected_layer_head_pairs))]
+    # with ThreadPoolExecutor(max_workers=12) as executor:
+    #     futures = [executor.submit(process_single_layer_single_head, 5, h , configs[4],data) for h in range(12)]
         
     #     for future in as_completed(futures):
     #         try:
